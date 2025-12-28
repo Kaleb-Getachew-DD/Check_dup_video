@@ -3,11 +3,11 @@ services:
     name: telegram-bot
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT bot:app
+    startCommand: python bot.py
     envVars:
       - key: BOT_TOKEN
         sync: false  # Set this in Render dashboard for security
       - key: WEBHOOK_URL
-        sync: false  # Set this to your Render service URL (e.g., https://your-service.onrender.com)
+        sync: false  # Set this to your Render service URL (e.g., https://check-dup-video.onrender.com)
       - key: PORT
-        value: 10000
+        value: 8080

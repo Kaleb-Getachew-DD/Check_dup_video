@@ -13,8 +13,6 @@ import logging
 import sys
 from typing import Optional
 from contextlib import contextmanager
-from flask import Flask, request
-import threading
 
 # === Configuration ===
 import os
@@ -26,14 +24,11 @@ DELETE_COOLDOWN = 60  # Minimum seconds between /delete_duplicates commands per 
 
 # === Webhook Configuration ===
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Set this in Render environment variables
-PORT = int(os.getenv("PORT", 5000))
+PORT = int(os.getenv("PORT", 8080))  # Changed to 8080 for Render
 
 # === Rate limiting storage ===
 last_report_usage = {}
 last_delete_usage = {}
-
-# === Flask App for Webhooks ===
-app = Flask(__name__)
 
 # === Logging setup ===
 logging.basicConfig(
@@ -398,24 +393,17 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in stats command: {e}")
         await update.message.reply_text("❌ Could not retrieve statistics.")
 
-# === Webhook Handler ===
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """Handle incoming Telegram updates via webhook"""
-    if request.method == "POST":
-        update = Update.de_json(request.get_json(force=True), application.bot)
-        if update:
-            # Process update in a separate thread to avoid blocking
-            threading.Thread(target=lambda: asyncio.run(application.process_update(update))).start()
-        return 'OK', 200
-    return 'Method not allowed', 405
+# === Main function ===
+async def main():
+    """Main async function"""
+    if not TOKEN:
+        logger.error("BOT_TOKEN environment variable not set!")
+        return
 
-# === Global application instance ===
-application = None
+    # Initialize database
+    initialize_database()
 
-async def setup_webhook():
-    """Set up webhook for the bot"""
-    global application
+    # Create application
     application = ApplicationBuilder().token(TOKEN).build()
 
     # Handlers
@@ -425,36 +413,22 @@ async def setup_webhook():
     application.add_handler(CommandHandler("stats", stats_command))
 
     if WEBHOOK_URL:
-        # Set webhook
-        await application.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
-        logger.info(f"Webhook set to: {WEBHOOK_URL}/webhook")
-    else:
-        logger.warning("WEBHOOK_URL not set, running in polling mode")
-        await application.run_polling()
-
-# === Main function ===
-def main():
-    global application
-
-    if not TOKEN:
-        logger.error("BOT_TOKEN environment variable not set!")
-        return
-
-    # Initialize database
-    initialize_database()
-
-    if WEBHOOK_URL:
         # Webhook mode for production
-        print("🤖 Setting up webhook...")
-        asyncio.run(setup_webhook())
-
-        # Run Flask app
-        print(f"🌐 Starting Flask server on port {PORT}...")
-        app.run(host='0.0.0.0', port=PORT)
+        print("🤖 Starting webhook mode...")
+        webhook_url = f"{WEBHOOK_URL}/webhook"
+        await application.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            webhook_url=webhook_url,
+            secret_token=None  # Optional: add for security
+        )
     else:
         # Polling mode for local development
-        print("🤖 Running in polling mode (local development)...")
-        asyncio.run(setup_webhook())
+        print("🤖 Starting polling mode (local development)...")
+        await application.run_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 if __name__ == "__main__":
     main()
