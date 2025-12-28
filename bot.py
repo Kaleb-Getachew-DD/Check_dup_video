@@ -15,7 +15,8 @@ from typing import Optional
 from contextlib import contextmanager
 
 # === Configuration ===
-TOKEN = "8569750097:AAGnD18qr2iP3ApmhwfV7WNx0s0-3rPi_JM"
+import os
+TOKEN = os.getenv("TOKEN")
 MAX_REPORT_VIDEOS = 10  # Maximum videos to show in report
 RATE_LIMIT_DELAY = 0.5  # Delay between sending videos
 REPORT_COOLDOWN = 30  # Minimum seconds between /report commands per chat
